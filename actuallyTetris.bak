@@ -1,0 +1,309 @@
+;; The first three lines of this file were inserted by DrRacket. They record metadata
+;; about the language level of this file in a form that our tools can easily process.
+#reader(lib "htdp-intermediate-reader.ss" "lang")((modname actuallyTetris) (read-case-sensitive #t) (teachpacks ()) (htdp-settings #(#t constructor repeating-decimal #f #t none #f () #f)))
+;;To test, enter (main FUN-WORLD) into the interactions window
+
+(require 2htdp/image)
+(require 2htdp/universe)
+
+(define HEIGHT 20)
+(define WIDTH 10)
+(define GRID-WIDTH 20)
+(define BG (empty-scene 220 400))
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Data Definitions
+
+
+
+;; A Block is a (make-block Number Number Color)
+(define-struct block (x y color))
+(define block1 (make-block 25 25 'Firebrick))
+
+#;(define (block-temp a-block)
+    (...(block-x a-block)...(block-y a-block) ... (block-color a-block)))
+ 
+;; A Tetra is a (make-tetra Posn Posn Posn BSet)
+;; The center point is the point around which the tetra rotates
+;; when it spins.
+(define-struct tetra (center top bottom blocks))
+
+#;(define (tetra-temp a-tet)
+    (posn-x (tetra-center a-tet)) ... (posn-y (tetra-center a-tet))
+    (posn-x (tetra-top a-tet)) ... (posn-y (tetra-top a-tet))
+    (posn-x (tetra-bottom a-tet)) ... (posn-y (tetra-bottom a-tet))
+    ...(BSet-temp (tetra-blocks a-tet)))
+    
+
+; A Tetra is one of:
+(define O (make-tetra (make-posn 110 30) (make-posn 110 10) (make-posn 100 30) (list (make-block 90 30 'Lawngreen)
+                                                                  (make-block 110 30 'Lawngreen)
+                                                                  (make-block 90 10 'Lawngreen)
+                                                                  (make-block 110 10 'Lawngreen))))
+
+(define I (make-tetra (make-posn 90 10) (make-posn 110 10) (make-posn 100 10) (list (make-block 90 10 'Firebrick)
+                                                                (make-block 70 10 'Firebrick)
+                                                                (make-block 130 10 'Firebrick)
+                                                                (make-block 110 10 'Firebrick))))
+
+(define J (make-tetra (make-posn 110 30) (make-posn 90 10) (make-posn 100 30) (list (make-block 110 30 'Orchid)
+                                                                  (make-block 90 10 'Orchid)
+                                                                  (make-block 90 30 'Orchid)
+                                                                  (make-block 130 30 'Orchid))))
+
+(define L (make-tetra (make-posn 110 10) (make-posn 130 10) (make-posn 120 30) (list (make-block 110 30 'darkturquoise)
+                                                                  (make-block 130 10 'darkturquoise)
+                                                                  (make-block 90 30 'darkturquoise)
+                                                                  (make-block 130 30 'darkturquoise))))
+
+(define T (make-tetra (make-posn 110 30) (make-posn 110 10) (make-posn 100 30) (list (make-block 110 30 'olive)
+                                                                  (make-block 110 10 'olive)
+                                                                  (make-block 90 30 'olive)
+                                                                  (make-block 130 30 'olive))))
+
+(define Z (make-tetra (make-posn 110 30) (make-posn 110 10) (make-posn 100 30) (list (make-block 110 30 'cadetblue)
+                                                                  (make-block 110 10 'cadetblue)
+                                                                  (make-block 90 10 'cadetblue)
+                                                                  (make-block 130 30 'cadetblue))))
+
+(define S (make-tetra (make-posn 130 30) (make-posn 110 10) (make-posn 100 30) (list (make-block 110 30 'magenta)
+                                                                  (make-block 110 10 'magenta)
+                                                                  (make-block 90 30 'magenta)
+                                                                  (make-block 130 10 'magenta))))
+
+
+;; A Set of Blocks (BSet) is one of:
+;; - empty
+;; - (cons Block BSet)
+;; Order does not matter.
+
+#;(define (BSet-temp a-BSet)
+  (cond [(empty? a-BSet) ...]
+        [(cons? a-BSet) (block-temp (first a-BSet))
+                        (BSet-temp (rest a-BSet))]))
+ 
+  
+;; A World is a (make-world Tetra BSet)
+;; The BSet represents the pile of blocks at the bottom of the screen.
+(define-struct world (tetra pile))
+
+#;(define (world-temp w)
+    (...(tetra-temp (world-tetra w)) ... (BSet-temp (world-pile w))))
+
+(define INITIAL (make-world (make-tetra (make-posn 0 0) (make-posn 0 0) (make-posn 0 0)  empty) empty))
+(define FUN-WORLD (make-world S empty))
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; STUFF
+(define (main w)
+  (big-bang w
+      [to-draw render]
+      [on-tick world-down .2]
+      [on-key change-tetra]
+;      [stop-when fill?]
+      ))
+
+
+
+
+; move-tetra: world -> world
+; moves tetra down
+#;(define (move-tetra w)
+    (render (make-tetra (make-posn (posn-x (tetra-center (world-tetra w))) (+ (posn-y (tetra-center (world-tetra w))) 10))
+                        (BSet-down))))
+
+
+;Bset-down : BSet -> BSet
+;adds 10 to y from all in the list
+(define (BSet-down a-BSet)
+  (cond [(empty? a-BSet) empty]
+        [(cons? a-BSet) (cons (make-block (block-x (first a-BSet)) (+ (block-y (first a-BSet)) 10) (block-color (first a-BSet)))
+                              (BSet-down (rest a-BSet)))]))
+
+(check-expect (BSet-down empty) empty)
+(check-expect (BSet-down (tetra-blocks O)) (list (make-block 90 40 'Lawngreen)
+                                     (make-block 110 40 'Lawngreen)
+                                     (make-block 90 20 'Lawngreen)
+                                     (make-block 110 20 'Lawngreen))) 
+
+;Bset-side : BSet Operator -> BSet
+;moves all blocks in the list left or right
+(define (BSet-side a-BSet plusormin)
+  (cond [(empty? a-BSet) empty]
+        [(cons? a-BSet) (cons (make-block (plusormin (block-x (first a-BSet)) 20)
+                                          (block-y (first a-BSet)) (block-color (first a-BSet)))
+                              (BSet-side (rest a-BSet) plusormin))]))
+
+(check-expect (BSet-side empty +) empty)
+(check-expect (BSet-side empty -) empty)
+(check-expect (BSet-side (tetra-blocks O) -) (list (make-block 70 30 'Lawngreen)
+                                     (make-block 90 30 'Lawngreen)
+                                     (make-block 70 10 'Lawngreen)
+                                     (make-block 90 10 'Lawngreen))) 
+
+
+; World-down World-> world 
+(define (world-down w)
+  (cond
+    [(= (posn-y (tetra-bottom (world-tetra w))) 390) (move-to-pile w)]
+    [(collision? (tetra-blocks (world-tetra w)) (world-pile w)) (move-to-pile w)]
+    [else (make-world (make-tetra (move-posn (tetra-center (world-tetra w)) 'y +)
+                                  (move-posn (tetra-top (world-tetra w)) 'y +)
+                                  (move-posn (tetra-bottom (world-tetra w)) 'y +)
+                                             (BSet-down (tetra-blocks (world-tetra w)))) (world-pile w))]))
+
+(check-expect (world-down INITIAL) (make-world (make-tetra (make-posn 0 10) (make-posn 0 10) (make-posn 0 10) empty) empty))
+
+;collision? : List List -> Boolean
+;checks if tetra-bottom equals tetra-top of previous tetra
+;bset2 is (world-pile w)
+(define (collision? bset1 bset2)
+  (cond [(empty? bset2) false]
+        [(cons? bset2) (if (and (= (block-x (first bset2)) (+ (block-x (first bset1)) 20))
+                           (= (block-y (first bset2)) (+ (block-y (first bset1)) 20))) #t
+                        (collision? bset1 (rest bset2)))]))
+
+(check-expect (collision? '(O J) '()) false)
+
+;move-to-pile: world -> world
+;adds tetra to pile and creates a new tetra
+(define (move-to-pile w)
+  (make-world (new-tetra (random 6)) (append (tetra-blocks (world-tetra w)) (world-pile w))))
+
+
+;new-tetra:  number-> tetra
+(define (new-tetra num)
+  (cond
+    [(= num 0) O]
+    [(= num 1) I]
+    [(= num 2) J]
+    [(= num 3) T]
+    [(= num 4) Z]
+    [(= num 5) S]))
+
+(check-expect (new-tetra 0) O)
+(check-expect (new-tetra 1) I)
+(check-expect (new-tetra 2) J)
+(check-expect (new-tetra 3) T)
+(check-expect (new-tetra 4) Z)
+(check-expect (new-tetra 5) S)
+    
+    
+; move-posn : Posn Symbol Operator -> Posn
+; moves posn one space over depending on input
+(define (move-posn a-pos xory minorplus)
+  (cond 
+    [(symbol=? xory 'x) (make-posn (minorplus (posn-x a-pos) 20) (posn-y a-pos))]
+    [(symbol=? xory 'y) (make-posn (posn-x a-pos)  (minorplus (posn-y a-pos) 10))]))
+(check-expect (move-posn (make-posn 40 40) 'x -) (make-posn 20 40))
+(check-expect (move-posn (make-posn 10 10) 'y +) (make-posn 10 20))
+    
+                            
+;Render W -> Image
+; creates an image out of blocks
+(define (render w)
+  (cond
+    [(empty? (tetra-blocks (world-tetra w))) (render-pile w)]
+    [(cons? (tetra-blocks (world-tetra w)))
+              (place-image (square 20 "solid" (block-color (first (tetra-blocks (world-tetra w)))))
+                                                                        (block-x (first (tetra-blocks (world-tetra w))))
+                                                                        (block-y (first (tetra-blocks (world-tetra w))))
+                                                                        (render (make-world (make-tetra (tetra-center (world-tetra w))
+                                                                                                        (tetra-top (world-tetra w))
+                                                                                                        (tetra-bottom (world-tetra w))
+                                                                                            (rest (tetra-blocks (world-tetra w))))
+                                                                                            (world-pile w))))]))
+
+
+;render-pile W -> image
+(define (render-pile w)
+  (cond
+    [(empty? (world-pile w)) BG]
+    [(cons? (world-pile w))
+              (place-image (square 20 "solid" (block-color (first (world-pile w))))
+                                                                        (block-x (first (world-pile w)))
+                                                                        (block-y (first (world-pile w)))
+                                                                        (render-pile (make-world (world-tetra w)
+                                                                                            (rest (world-pile w)))))]))
+
+
+(check-expect (render INITIAL) BG) 
+
+
+; change-tetra : World Key -> World
+; determine action based off key press
+(define (change-tetra w a-key)
+  (make-world (cond
+            ;               [(key=? a-key "s") (tetra-rotate-tl (tetra-center (world-tetra w)))]
+           ;                [(key=? a-key "a") (tetra-rotate-tr (tetra-center (world-tetra w)))]
+                           [(key=? a-key "left") (tetra-shift-l (world-tetra w))]
+                           [(key=? a-key "right") (tetra-shift-r (world-tetra w))]
+                           [else (world-tetra w)])
+                         (world-pile w)))
+
+
+; tetra-shift-l: tetra-> tetra
+;moves tetra left 10 pixels
+(define (tetra-shift-l a-tet)
+  (cond
+    [(or (wall? (tetra-blocks a-tet) 10) (wall? (tetra-blocks a-tet) 390)) a-tet]
+    [else (make-tetra (move-posn (tetra-center a-tet) 'x -)
+                                  (move-posn (tetra-top a-tet) 'x -)
+                                  (move-posn (tetra-bottom a-tet) 'x -)
+                                             (BSet-side (tetra-blocks a-tet) -))]))
+; tetra-shift-r: tetra-> tetra
+;moves tetra right 10 pixels
+(define (tetra-shift-r a-tet)
+  (cond
+    [ (wall? (tetra-blocks a-tet) 210) a-tet]
+    [else (make-tetra (move-posn (tetra-center a-tet) 'x +)
+                                  (move-posn (tetra-top a-tet) 'x +)
+                                  (move-posn (tetra-bottom a-tet) 'x +)
+                                             (BSet-side (tetra-blocks a-tet) +))]))   
+
+
+; block-dist-checker: BSet Number -> boolean
+(define (wall? a-BSet wall)
+  (cond [(empty? a-BSet) #false]
+        [(cons? a-BSet) (if (= (block-x (first a-BSet)) wall)
+                        #true
+                        (wall? (rest a-BSet) wall))]))
+
+(check-expect (wall? (tetra-blocks O) 390) #false)
+(check-expect (wall? (list (make-block 390 100 'red )) 390) #true)
+ 
+; tetra-rotate-tl : Tetra -> Tetra
+; THIS CAN BE FIXED
+(define (tetra-rotate-tl a-tet)
+    (cond
+      [(empty? (tetra-blocks a-tet)) a-tet]
+      [(cons? (tetra-blocks a-tet)) (make-tetra (tetra-center a-tet)
+                                                (cons (block-rotate-tl (tetra-center a-tet) (first (tetra-blocks a-tet)))
+                                                      (tetra-rotate-tl (rest (tetra-blocks a-tet)))))]))
+                                                       
+;; block-rotate-ccw : Posn Block -> Block
+;; Rotate the block 90 counterclockwise around the posn.
+(define (block-rotate-tl c b)
+  (make-block (+ (posn-x c)
+                 (- (posn-y c)
+                    (block-y b)))
+              (+ (posn-y c)
+                 (- (block-x b)
+                    (posn-x c)))
+              (block-color b)))
+
+;;fill? : World -> Boolean
+;; is the world filled with blocks?
+#;(define (fill? w)
+  (collision? (tetra-blocks (world-tetra w)) (world-pile w)) (move-to-pile w)))
+
+
+;; check-row : BSet -> Boolean
+;; is there a block at every x for same y?
+(define (check-row a-BSet)
+  (block-x (first a-BSet))
+  (block-y (first a-BSet))
